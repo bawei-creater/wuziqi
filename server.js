@@ -25,7 +25,7 @@ function genId() {
 
 // ===== HTTP 服务器（提供静态文件）=====
 const server = http.createServer((req, res) => {
-  let filePath = req.url === "/" ? "/gomoku-online.html" : req.url;
+  let filePath = req.url === "/" ? "/gomoku-all.html" : req.url;
   filePath = path.join(__dirname, filePath);
   const ext = path.extname(filePath);
   const types = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css" };

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: "Microsoft YaHei", sans-serif;
+    color: #eee;
+  }
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 36px;
+    letter-spacing: 10px;
+    color: #e6b422;
+    text-shadow: 0 2px 8px rgba(230, 180, 34, 0.3);
+    margin-bottom: 10px;
+  }
+  /* ===== 模式选择 ===== */
+  #modeSelect {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 40px 50px;
+    background: #16213e;
+    border-radius: 16px;
+    border: 1px solid #333;
+  }
+  #modeSelect p { color: #888; font-size: 14px; margin-bottom: 10px; }
+  .mode-btn {
+    padding: 16px 40px;
+    font-size: 18px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+    width: 240px;
+    font-weight: bold;
+  }
+  .mode-local {
+    background: #e6b422;
+    color: #1a1a2e;
+  }
+  .mode-local:hover { background: #f0c848; transform: translateY(-2px); }
+  .mode-online {
+    background: #0f3460;
+    color: #aaa;
+    border: 1px solid #444;
+  }
+  .mode-online:hover { background: #1a4a7a; color: #ddd; transform: translateY(-2px); }
+  /* ===== 在线大厅 ===== */
+  #lobby {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 30px 40px;
+    background: #16213e;
+    border-radius: 12px;
+    border: 1px solid #333;
+  }
+  .lobby-row { display: flex; gap: 8px; align-items: center; }
+  #roomInput {
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #0f3460;
+    color: #eee;
+    width: 140px;
+    text-align: center;
+    font-family: inherit;
+    letter-spacing: 2px;
+  }
+  #roomInput::placeholder { color: #555; letter-spacing: 0; }
+  .lobby-btn {
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  #createBtn { background: #e6b422; color: #1a1a2e; font-weight: bold; }
+  #createBtn:hover { background: #f0c848; }
+  #joinBtn { background: #0f3460; color: #aaa; border: 1px solid #444; }
+  #joinBtn:hover { background: #1a4a7a; color: #ddd; }
+  #backBtn { background: transparent; color: #666; border: 1px solid #333; font-size: 14px; padding: 8px 20px; }
+  #backBtn:hover { color: #aaa; border-color: #555; }
+  /* ===== 游戏区 ===== */
+  #gameArea {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .info-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .turn-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #16213e;
+    border-radius: 8px;
+    border: 1px solid #333;
+  }
+  .turn-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #555;
+  }
+  .turn-dot.black { background: #111; }
+  .turn-dot.white { background: #f5f5f5; }
+  .role-badge {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .role-black { background: #222; color: #fff; border: 1px solid #555; }
+  .role-white { background: #eee; color: #333; border: 1px solid #aaa; }
+  #status {
+    font-size: 18px;
+    color: #e6b422;
+    min-width: 100px;
+    text-align: center;
+  }
+  .room-info {
+    padding: 6px 14px;
+    background: #16213e;
+    border-radius: 8px;
+    border: 1px solid #333;
+    font-size: 13px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .room-id { color: #e6b422; font-weight: bold; letter-spacing: 1px; }
+  .small-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #0f3460;
+    color: #aaa;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .small-btn:hover { background: #1a4a7a; color: #ddd; }
+  canvas {
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  .btn-row { display: flex; gap: 12px; }
+  .game-btn {
+    padding: 10px 24px;
+    font-size: 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  #restartBtn { background: #e6b422; color: #1a1a2e; font-weight: bold; }
+  #restartBtn:hover { background: #f0c848; }
+  #backToMenuBtn { background: #16213e; color: #aaa; border: 1px solid #333; }
+  #backToMenuBtn:hover { background: #1a2744; color: #ddd; }
+  .waiting-msg {
+    color: #e6b422;
+    font-size: 16px;
+    animation: blink 1.5s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .score-board {
+    display: flex;
+    gap: 24px;
+    font-size: 14px;
+  }
+  .score-item { display: flex; align-items: center; gap: 4px; }
+  .score-num { color: #e6b422; font-weight: bold; font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>五 子 棋</h1>
+
+  <!-- 模式选择 -->
+  <div id="modeSelect">
+    <p>选择游戏模式</p>
+    <button class="mode-btn mode-local" id="localBtn">本地双人</button>
+    <button class="mode-btn mode-online" id="onlineBtn">在线对战</button>
+  </div>
+
+  <!-- 在线大厅 -->
+  <div id="lobby">
+    <button class="lobby-btn" id="createBtn">创建房间</button>
+    <div class="lobby-row">
+      <input type="text" id="roomInput" placeholder="房间号" maxlength="6">
+      <button class="lobby-btn" id="joinBtn">加入</button>
+    </div>
+    <button class="lobby-btn" id="backBtn">返回</button>
+  </div>
+
+  <!-- 游戏区 -->
+  <div id="gameArea">
+    <div class="room-info" id="roomInfoBar" style="display:none">
+      房间：<span class="room-id" id="roomIdDisplay"></span>
+      <button class="small-btn" id="copyLinkBtn">复制链接</button>
+    </div>
+    <div class="info-bar">
+      <div class="turn-indicator">
+        <span>当前：</span>
+        <div class="turn-dot black" id="turnDot"></div>
+        <span id="turnText">黑棋</span>
+      </div>
+      <div id="roleBadge" class="role-badge role-black" style="display:none">黑棋</div>
+      <div id="status"></div>
+    </div>
+    <div id="waitingMsg" class="waiting-msg" style="display:none">等待对手加入...</div>
+    <canvas id="board"></canvas>
+    <div class="score-board" id="scoreBoard">
+      <div class="score-item">黑棋：<span class="score-num" id="blackScore">0</span></div>
+      <div class="score-item">白棋：<span class="score-num" id="whiteScore">0</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="game-btn" id="restartBtn">再来一局</button>
+      <button class="game-btn" id="backToMenuBtn">返回菜单</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 音效 =====
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+function playPlaceSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const bufferSize = audioCtx.sampleRate * 0.06;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 8);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "bandpass"; filter.frequency.value = 800; filter.Q.value = 1.5;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.5, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  noise.connect(filter).connect(gain).connect(audioCtx.destination);
+  noise.start(now); noise.stop(now + 0.08);
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.05);
+  const oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.2, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  osc.connect(oscGain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.06);
+}
+function playWinSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  [523, 659, 784, 1047].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = "triangle"; osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    const t = now + i * 0.15;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.4);
+  });
+  const lastT = now + 0.6;
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine"; osc.frequency.value = 1047;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.3, lastT);
+  gain.gain.exponentialRampToValueAtTime(0.001, lastT + 0.8);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(lastT); osc.stop(lastT + 0.8);
+}
+function playInvalidSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine"; osc.frequency.value = 200;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.1);
+}
+
+// ===== 棋盘 =====
+const GRID = 15;
+const CELL = 40;
+const PADDING = 30;
+const PIECE_R = 17;
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+canvas.width = canvas.height = PADDING * 2 + CELL * (GRID - 1);
+
+let board, currentPlayer, gameOver;
+let gameMode = null; // "local" | "online"
+let scores = { black: 0, white: 0 };
+
+// 在线相关
+let ws = null;
+let myRole = null;
+let roomId = null;
+
+function emptyBoard() {
+  return Array.from({ length: GRID }, () => Array(GRID).fill(0));
+}
+
+function draw() {
+  ctx.fillStyle = "#dcb35c";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(160, 120, 40, 0.15)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.height; i += 6) {
+    ctx.beginPath();
+    ctx.moveTo(0, i + Math.sin(i * 0.05) * 3);
+    ctx.lineTo(canvas.width, i + Math.sin(i * 0.05 + 2) * 3);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < GRID; i++) {
+    const pos = PADDING + i * CELL;
+    ctx.beginPath(); ctx.moveTo(PADDING, pos); ctx.lineTo(PADDING + CELL * (GRID - 1), pos); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pos, PADDING); ctx.lineTo(pos, PADDING + CELL * (GRID - 1)); ctx.stroke();
+  }
+  const stars = [3, 7, 11];
+  ctx.fillStyle = "#333";
+  for (const r of stars) for (const c of stars) {
+    ctx.beginPath(); ctx.arc(PADDING + c * CELL, PADDING + r * CELL, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  if (!board) return;
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+    if (board[r][c]) drawPiece(r, c, board[r][c]);
+  }
+}
+
+function drawPiece(r, c, player) {
+  const x = PADDING + c * CELL, y = PADDING + r * CELL;
+  ctx.beginPath(); ctx.arc(x + 2, y + 2, PIECE_R, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fill();
+  const grad = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, PIECE_R);
+  if (player === 1) { grad.addColorStop(0, "#555"); grad.addColorStop(1, "#111"); }
+  else { grad.addColorStop(0, "#fff"); grad.addColorStop(1, "#ccc"); }
+  ctx.beginPath(); ctx.arc(x, y, PIECE_R, 0, Math.PI * 2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = player === 1 ? "#000" : "#999"; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function checkWin(r, c, player) {
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (const [dr, dc] of dirs) {
+    let count = 1;
+    for (let i = 1; i < 5; i++) {
+      const nr = r + dr*i, nc = c + dc*i;
+      if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID || board[nr][nc] !== player) break;
+      count++;
+    }
+    for (let i = 1; i < 5; i++) {
+      const nr = r - dr*i, nc = c - dc*i;
+      if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID || board[nr][nc] !== player) break;
+      count++;
+    }
+    if (count >= 5) return true;
+  }
+  return false;
+}
+
+function updateTurn() {
+  document.getElementById("turnDot").className = "turn-dot " + (currentPlayer === 1 ? "black" : "white");
+  document.getElementById("turnText").textContent = currentPlayer === 1 ? "黑棋" : "白棋";
+}
+
+function updateScores() {
+  document.getElementById("blackScore").textContent = scores.black;
+  document.getElementById("whiteScore").textContent = scores.white;
+}
+
+// ===== 模式切换 =====
+function showScreen(screen) {
+  document.getElementById("modeSelect").style.display = screen === "mode" ? "flex" : "none";
+  document.getElementById("lobby").style.display = screen === "lobby" ? "flex" : "none";
+  document.getElementById("gameArea").style.display = screen === "game" ? "flex" : "none";
+}
+
+// 本地模式
+function startLocal() {
+  gameMode = "local";
+  board = emptyBoard();
+  currentPlayer = 1;
+  gameOver = false;
+  scores = { black: 0, white: 0 };
+  document.getElementById("status").textContent = "";
+  document.getElementById("roomInfoBar").style.display = "none";
+  document.getElementById("roleBadge").style.display = "none";
+  document.getElementById("waitingMsg").style.display = "none";
+  document.getElementById("scoreBoard").style.display = "flex";
+  showScreen("game");
+  updateTurn();
+  updateScores();
+  draw();
+}
+
+// 在线模式
+function showLobby() {
+  gameMode = "online";
+  showScreen("lobby");
+}
+
+function connectWS(callback) {
+  if (ws && ws.readyState === WebSocket.OPEN) { callback(); return; }
+  const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+  ws = new WebSocket(url);
+  ws.onopen = () => { console.log("已连接"); callback(); };
+  ws.onclose = () => console.log("断开");
+  ws.onmessage = (e) => handleWSMessage(JSON.parse(e.data));
+}
+
+function handleWSMessage(msg) {
+  if (msg.type === "created") {
+    roomId = msg.roomId;
+    myRole = msg.role;
+    board = msg.board;
+    currentPlayer = msg.turn;
+    gameOver = false;
+    enterOnlineGame();
+    document.getElementById("waitingMsg").style.display = "block";
+    draw();
+  }
+  if (msg.type === "joined") {
+    roomId = msg.roomId;
+    myRole = msg.role;
+    board = msg.board;
+    currentPlayer = msg.turn;
+    gameOver = msg.status === "finished";
+    enterOnlineGame();
+    document.getElementById("waitingMsg").style.display = (msg.status === "waiting") ? "block" : "none";
+    if (myRole === "spectator") {
+      document.getElementById("roleBadge").textContent = "观战中";
+      document.getElementById("roleBadge").className = "role-badge";
+      document.getElementById("roleBadge").style.background = "#0f3460";
+      document.getElementById("roleBadge").style.color = "#aaa";
+    }
+    updateTurn();
+    draw();
+  }
+  if (msg.type === "start") {
+    document.getElementById("waitingMsg").style.display = "none";
+  }
+  if (msg.type === "move") {
+    board[msg.r][msg.c] = msg.player;
+    playPlaceSound();
+    draw();
+  }
+  if (msg.type === "turn") {
+    currentPlayer = msg.turn;
+    updateTurn();
+  }
+  if (msg.type === "win") {
+    gameOver = true;
+    const name = msg.winner === "black" ? "黑棋" : "白棋";
+    document.getElementById("status").textContent = name + " 获胜!";
+    setTimeout(playWinSound, 200);
+  }
+  if (msg.type === "restart") {
+    board = msg.board;
+    currentPlayer = msg.turn;
+    gameOver = false;
+    document.getElementById("status").textContent = "";
+    if (myRole === "black") myRole = "white";
+    else if (myRole === "white") myRole = "black";
+    updateOnlineRoleBadge();
+    updateTurn();
+    draw();
+  }
+  if (msg.type === "opponent_left") {
+    document.getElementById("status").textContent = "对手已离开";
+    gameOver = true;
+  }
+  if (msg.type === "error") { alert(msg.msg); }
+}
+
+function enterOnlineGame() {
+  document.getElementById("roomInfoBar").style.display = "flex";
+  document.getElementById("roleBadge").style.display = "block";
+  document.getElementById("scoreBoard").style.display = "none";
+  document.getElementById("roomIdDisplay").textContent = roomId;
+  updateOnlineRoleBadge();
+  updateTurn();
+  showScreen("game");
+}
+
+function updateOnlineRoleBadge() {
+  const badge = document.getElementById("roleBadge");
+  if (myRole === "black") { badge.textContent = "你是黑棋"; badge.className = "role-badge role-black"; badge.style = ""; }
+  else if (myRole === "white") { badge.textContent = "你是白棋"; badge.className = "role-badge role-white"; badge.style = ""; }
+}
+
+// ===== 落子 =====
+canvas.addEventListener("click", (e) => {
+  if (!board || gameOver) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const c = Math.round((x - PADDING) / CELL);
+  const r = Math.round((y - PADDING) / CELL);
+  if (r < 0 || r >= GRID || c < 0 || c >= GRID) return;
+  if (board[r][c]) { playInvalidSound(); return; }
+
+  if (gameMode === "local") {
+    // 本地模式：直接落子
+    board[r][c] = currentPlayer;
+    playPlaceSound();
+    draw();
+    if (checkWin(r, c, currentPlayer)) {
+      gameOver = true;
+      const name = currentPlayer === 1 ? "黑棋" : "白棋";
+      document.getElementById("status").textContent = name + " 获胜!";
+      if (currentPlayer === 1) scores.black++; else scores.white++;
+      updateScores();
+      setTimeout(playWinSound, 200);
+      return;
+    }
+    let full = true;
+    for (let rr = 0; rr < GRID; rr++) for (let cc = 0; cc < GRID; cc++) if (!board[rr][cc]) full = false;
+    if (full) { gameOver = true; document.getElementById("status").textContent = "平局!"; return; }
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    updateTurn();
+  }
+
+  if (gameMode === "online") {
+    // 在线模式：发送到服务器
+    const isMyTurn = (myRole === "black" && currentPlayer === 1) || (myRole === "white" && currentPlayer === 2);
+    if (!isMyTurn) { playInvalidSound(); return; }
+    ws.send(JSON.stringify({ type: "move", r, c }));
+  }
+});
+
+// ===== 按钮事件 =====
+document.getElementById("localBtn").addEventListener("click", startLocal);
+document.getElementById("onlineBtn").addEventListener("click", showLobby);
+
+document.getElementById("createBtn").addEventListener("click", () => {
+  connectWS(() => ws.send(JSON.stringify({ type: "create" })));
+});
+
+document.getElementById("joinBtn").addEventListener("click", () => {
+  const id = document.getElementById("roomInput").value.trim();
+  if (!id) { alert("请输入房间号"); return; }
+  connectWS(() => ws.send(JSON.stringify({ type: "join", roomId: id })));
+});
+
+document.getElementById("roomInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("joinBtn").click();
+});
+
+document.getElementById("backBtn").addEventListener("click", () => {
+  if (ws) { ws.close(); ws = null; }
+  showScreen("mode");
+});
+
+document.getElementById("restartBtn").addEventListener("click", () => {
+  if (gameMode === "local") {
+    board = emptyBoard();
+    currentPlayer = 1;
+    gameOver = false;
+    document.getElementById("status").textContent = "";
+    updateTurn();
+    draw();
+  }
+  if (gameMode === "online" && ws) {
+    ws.send(JSON.stringify({ type: "restart" }));
+  }
+});
+
+document.getElementById("backToMenuBtn").addEventListener("click", () => {
+  if (ws) { ws.close(); ws = null; }
+  roomId = null;
+  myRole = null;
+  gameMode = null;
+  showScreen("mode");
+});
+
+document.getElementById("copyLinkBtn").addEventListener("click", () => {
+  const url = location.origin + location.pathname + "#" + roomId;
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById("copyLinkBtn").textContent = "已复制!";
+    setTimeout(() => document.getElementById("copyLinkBtn").textContent = "复制链接", 1500);
+  });
+});
+
+// URL hash 自动加入在线房间
+if (location.hash) {
+  const hashRoom = location.hash.substring(1);
+  if (hashRoom) {
+    gameMode = "online";
+    connectWS(() => ws.send(JSON.stringify({ type: "join", roomId: hashRoom })));
+  }
+}
+</script>
+</body>
+</html>
