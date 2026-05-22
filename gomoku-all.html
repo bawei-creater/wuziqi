@@ -191,6 +191,40 @@
   #restartBtn:hover { background: #f0c848; }
   #backToMenuBtn { background: #16213e; color: #aaa; border: 1px solid #333; }
   #backToMenuBtn:hover { background: #1a2744; color: #ddd; }
+  #undoBtn { background: #16213e; color: #aaa; border: 1px solid #333; }
+  #undoBtn:hover { background: #1a2744; color: #ddd; }
+  /* 悔棋弹窗 */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #16213e;
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    min-width: 280px;
+  }
+  .modal p { margin-bottom: 20px; font-size: 16px; }
+  .modal-btns { display: flex; gap: 12px; justify-content: center; }
+  .modal-btns button {
+    padding: 10px 28px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+  }
+  #undoAcceptBtn { background: #e6b422; color: #1a1a2e; font-weight: bold; }
+  #undoRejectBtn { background: #333; color: #aaa; }
+  #undoOkBtn { background: #333; color: #aaa; }
   .waiting-msg {
     color: #e6b422;
     font-size: 16px;
@@ -252,8 +286,30 @@
       <div class="score-item">白棋：<span class="score-num" id="whiteScore">0</span></div>
     </div>
     <div class="btn-row">
+      <button class="game-btn" id="undoBtn" style="display:none">悔棋</button>
       <button class="game-btn" id="restartBtn">再来一局</button>
       <button class="game-btn" id="backToMenuBtn">返回菜单</button>
+    </div>
+  </div>
+
+  <!-- 悔棋请求弹窗（对手收到） -->
+  <div class="modal-overlay" id="undoModal">
+    <div class="modal">
+      <p id="undoModalText">对手请求悔棋，是否同意？</p>
+      <div class="modal-btns">
+        <button id="undoAcceptBtn">同意</button>
+        <button id="undoRejectBtn">拒绝</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 悔棋结果弹窗（请求方收到） -->
+  <div class="modal-overlay" id="undoResultModal">
+    <div class="modal">
+      <p id="undoResultText">等待对手回应...</p>
+      <div class="modal-btns">
+        <button id="undoOkBtn">知道了</button>
+      </div>
     </div>
   </div>
 </div>
@@ -338,6 +394,7 @@ canvas.width = canvas.height = PADDING * 2 + CELL * (GRID - 1);
 
 let board, currentPlayer, gameOver;
 let gameMode = null; // "local" | "online"
+let localHistory = []; // 本地模式落子历史
 let scores = { black: 0, white: 0 };
 
 // 在线相关
@@ -432,12 +489,14 @@ function startLocal() {
   board = emptyBoard();
   currentPlayer = 1;
   gameOver = false;
+  localHistory = [];
   scores = { black: 0, white: 0 };
   document.getElementById("status").textContent = "";
   document.getElementById("roomInfoBar").style.display = "none";
   document.getElementById("roleBadge").style.display = "none";
   document.getElementById("waitingMsg").style.display = "none";
   document.getElementById("scoreBoard").style.display = "flex";
+  document.getElementById("undoBtn").style.display = "inline-block";
   showScreen("game");
   updateTurn();
   updateScores();
@@ -521,12 +580,41 @@ function handleWSMessage(msg) {
     gameOver = true;
   }
   if (msg.type === "error") { alert(msg.msg); }
+
+  // 悔棋相关
+  if (msg.type === "undo_request") {
+    // 对手请求悔棋，弹窗确认
+    document.getElementById("undoModalText").textContent = "对手请求悔棋，是否同意？";
+    document.getElementById("undoModal").classList.add("show");
+  }
+  if (msg.type === "undo_sent") {
+    // 自己发了请求，等待回应
+    document.getElementById("undoResultText").textContent = "已发送悔棋请求，等待对手回应...";
+    document.getElementById("undoResultModal").classList.add("show");
+  }
+  if (msg.type === "undo_done") {
+    // 悔棋成功
+    board = msg.board;
+    currentPlayer = msg.turn;
+    document.getElementById("undoModal").classList.remove("show");
+    document.getElementById("undoResultModal").classList.remove("show");
+    document.getElementById("status").textContent = "";
+    gameOver = false;
+    updateTurn();
+    draw();
+  }
+  if (msg.type === "undo_rejected") {
+    // 对手拒绝悔棋
+    document.getElementById("undoResultText").textContent = "对手拒绝了悔棋请求";
+    document.getElementById("undoResultModal").classList.add("show");
+  }
 }
 
 function enterOnlineGame() {
   document.getElementById("roomInfoBar").style.display = "flex";
   document.getElementById("roleBadge").style.display = "block";
   document.getElementById("scoreBoard").style.display = "none";
+  document.getElementById("undoBtn").style.display = "inline-block";
   document.getElementById("roomIdDisplay").textContent = roomId;
   updateOnlineRoleBadge();
   updateTurn();
@@ -552,6 +640,7 @@ canvas.addEventListener("click", (e) => {
   if (gameMode === "local") {
     // 本地模式：直接落子
     board[r][c] = currentPlayer;
+    localHistory.push({ r, c, player: currentPlayer });
     playPlaceSound();
     draw();
     if (checkWin(r, c, currentPlayer)) {
@@ -606,6 +695,7 @@ document.getElementById("restartBtn").addEventListener("click", () => {
     board = emptyBoard();
     currentPlayer = 1;
     gameOver = false;
+    localHistory = [];
     document.getElementById("status").textContent = "";
     updateTurn();
     draw();
@@ -620,6 +710,8 @@ document.getElementById("backToMenuBtn").addEventListener("click", () => {
   roomId = null;
   myRole = null;
   gameMode = null;
+  localHistory = [];
+  document.getElementById("undoBtn").style.display = "none";
   showScreen("mode");
 });
 
@@ -629,6 +721,37 @@ document.getElementById("copyLinkBtn").addEventListener("click", () => {
     document.getElementById("copyLinkBtn").textContent = "已复制!";
     setTimeout(() => document.getElementById("copyLinkBtn").textContent = "复制链接", 1500);
   });
+});
+
+// 悔棋按钮
+document.getElementById("undoBtn").addEventListener("click", () => {
+  if (gameMode === "local") {
+    // 本地模式：直接悔棋
+    if (!localHistory || localHistory.length === 0) return;
+    const m1 = localHistory.pop();
+    board[m1.r][m1.c] = 0;
+    currentPlayer = m1.player;
+    gameOver = false;
+    document.getElementById("status").textContent = "";
+    updateTurn();
+    draw();
+  }
+  if (gameMode === "online" && ws) {
+    ws.send(JSON.stringify({ type: "undo_request" }));
+  }
+});
+
+// 悔棋弹窗按钮
+document.getElementById("undoAcceptBtn").addEventListener("click", () => {
+  ws.send(JSON.stringify({ type: "undo_accept" }));
+  document.getElementById("undoModal").classList.remove("show");
+});
+document.getElementById("undoRejectBtn").addEventListener("click", () => {
+  ws.send(JSON.stringify({ type: "undo_reject" }));
+  document.getElementById("undoModal").classList.remove("show");
+});
+document.getElementById("undoOkBtn").addEventListener("click", () => {
+  document.getElementById("undoResultModal").classList.remove("show");
 });
 
 // URL hash 自动加入在线房间

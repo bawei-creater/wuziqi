@@ -14,7 +14,9 @@ function createRoom(id) {
     currentTurn: 1, // 1=black, 2=white
     players: {},     // { black: ws, white: ws }
     status: "waiting",
-    winner: null
+    winner: null,
+    history: [],     // 落子历史：[{r, c, player}]
+    undoPending: null // 悔棋请求：{ from: "black"|"white" }
   });
   return rooms.get(id);
 }
@@ -84,6 +86,8 @@ wss.on("connection", (ws) => {
       const isMyTurn = (myRole === "black" && room.currentTurn === 1) || (myRole === "white" && room.currentTurn === 2);
       if (!isMyTurn || room.board[r][c]) return;
       room.board[r][c] = room.currentTurn;
+      room.history.push({ r, c, player: room.currentTurn });
+      room.undoPending = null; // 有新落子，取消待处理的悔棋
       // 检查胜负
       const winner = checkWin(room.board, r, c, room.currentTurn);
       if (winner) {
@@ -98,6 +102,43 @@ wss.on("connection", (ws) => {
       }
     }
 
+    // 悔棋请求
+    if (msg.type === "undo_request" && myRoom) {
+      const room = rooms.get(myRoom);
+      if (!room || room.status !== "playing") return;
+      if (room.history.length < 2) { ws.send(JSON.stringify({ type: "error", msg: "没有可以悔的棋" })); return; }
+      room.undoPending = { from: myRole };
+      // 通知对手
+      const opponent = myRole === "black" ? room.players.white : room.players.black;
+      if (opponent) opponent.send(JSON.stringify({ type: "undo_request", from: myRole }));
+      ws.send(JSON.stringify({ type: "undo_sent" }));
+    }
+
+    // 同意悔棋
+    if (msg.type === "undo_accept" && myRoom) {
+      const room = rooms.get(myRoom);
+      if (!room || !room.undoPending) return;
+      if (room.undoPending.from === myRole) return; // 不能自己同意自己
+      // 撤回最后两步（双方各一步）
+      const m1 = room.history.pop();
+      const m2 = room.history.pop();
+      if (m1) room.board[m1.r][m1.c] = 0;
+      if (m2) room.board[m2.r][m2.c] = 0;
+      room.currentTurn = m2 ? m2.player : 1;
+      room.undoPending = null;
+      broadcast(myRoom, { type: "undo_done", board: room.board, turn: room.currentTurn });
+    }
+
+    // 拒绝悔棋
+    if (msg.type === "undo_reject" && myRoom) {
+      const room = rooms.get(myRoom);
+      if (!room || !room.undoPending) return;
+      if (room.undoPending.from === myRole) return;
+      room.undoPending = null;
+      const requester = myRole === "black" ? room.players.white : room.players.black;
+      if (requester) requester.send(JSON.stringify({ type: "undo_rejected" }));
+    }
+
     if (msg.type === "restart" && myRoom) {
       const room = rooms.get(myRoom);
       if (!room) return;
@@ -105,6 +146,8 @@ wss.on("connection", (ws) => {
       room.currentTurn = 1;
       room.status = "playing";
       room.winner = null;
+      room.history = [];
+      room.undoPending = null;
       // 交换先后手
       const tmp = room.players.black;
       room.players.black = room.players.white;
