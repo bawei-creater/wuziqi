@@ -18,7 +18,7 @@
   .container {
     display: flex;
     flex-direction: column;
-    align-items   对齐项目   对齐项目: center;
+    align-items: center;
     gap: 16px;
     padding: 20px;
   }
@@ -181,7 +181,7 @@
     50% { opacity: 0.4; }
   }
 </style>
-</   & lt;head>
+</head>
 <body>
 <div class="container">
   <h1>五 子 棋</h1>
@@ -220,12 +220,35 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// 自动尝试多个 CDN 加载 Supabase
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+const CDN_URLS = [
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+  "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.0/umd/supabase.min.js",
+  "https://cdn.bootcdn.net/ajax/libs/supabase/2.39.0/umd/supabase.min.js"
+];
+async function loadSupabase() {
+  for (const url of CDN_URLS) {
+    try { await loadScript(url); return true; } catch (e) { }
+  }
+  return false;
+}
+</script>
 <script>
 // ===== Supabase 配置 =====
 const SUPABASE_URL = "https://duxadpnlfxedispqiaz.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1eGFkcG5wbGZ4ZWRpc3BpcWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzM1MjEsImV4cCI6MjA5NTAwOTUyMX0.lCDapOrXf37ERjHj4CTUBlsuAbrrhCeylrNRBWhzo4w";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null;
 
 // ===== 音效模块 =====
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -580,36 +603,47 @@ async function restartGame() {
   }).eq("id", roomId);
 }
 
-// ===== 事件绑定 =====
-canvas.addEventListener("click", (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const c = Math.round((x - PADDING) / CELL);
-  const r = Math.round((y - PADDING) / CELL);
-  if (r < 0 || r >= GRID || c < 0 || c >= GRID) return;
-  placePiece(r, c);
-});
+// ===== 初始化 =====
+async function main() {
+  const loaded = await loadSupabase();
+  if (!loaded || !window.supabase) {
+    alert("网络异常，无法加载游戏服务，请检查网络后刷新页面");
+    return;
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-document.getElementById("createBtn").addEventListener("click", createRoom);
-document.getElementById("joinBtn").addEventListener("click", () => joinRoom(document.getElementById("roomInput").value));
-document.getElementById("roomInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") joinRoom(document.getElementById("roomInput").value);
-});
-document.getElementById("restartBtn").addEventListener("click", restartGame);
-document.getElementById("leaveBtn").addEventListener("click", leaveGame);
-document.getElementById("copyLinkBtn").addEventListener("click", () => {
-  const url = location.origin + location.pathname + "#" + roomId;
-  navigator.clipboard.writeText(url).then(() => {
-    document.getElementById("copyLinkBtn").textContent = "已复制!";
-    setTimeout(() => document.getElementById("copyLinkBtn").textContent = "复制链接", 1500);
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const c = Math.round((x - PADDING) / CELL);
+    const r = Math.round((y - PADDING) / CELL);
+    if (r < 0 || r >= GRID || c < 0 || c >= GRID) return;
+    placePiece(r, c);
   });
-});
 
-// 从 URL hash 自动加入房间
-if (location.hash) {
-  const hashRoom = location.hash.substring(1);
-  if (hashRoom) joinRoom(hashRoom);
+  document.getElementById("createBtn").addEventListener("click", createRoom);
+  document.getElementById("joinBtn").addEventListener("click", () => joinRoom(document.getElementById("roomInput").value));
+  document.getElementById("roomInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") joinRoom(document.getElementById("roomInput").value);
+  });
+  document.getElementById("restartBtn").addEventListener("click", restartGame);
+  document.getElementById("leaveBtn").addEventListener("click", leaveGame);
+  document.getElementById("copyLinkBtn").addEventListener("click", () => {
+    const url = location.origin + location.pathname + "#" + roomId;
+    navigator.clipboard.writeText(url).then(() => {
+      document.getElementById("copyLinkBtn").textContent = "已复制!";
+      setTimeout(() => document.getElementById("copyLinkBtn").textContent = "复制链接", 1500);
+    });
+  });
+
+  // 从 URL hash 自动加入房间
+  if (location.hash) {
+    const hashRoom = location.hash.substring(1);
+    if (hashRoom) joinRoom(hashRoom);
+  }
 }
+
+main();
 </script>
 </body>
 </html>
