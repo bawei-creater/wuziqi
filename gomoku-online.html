@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋 - 在线对战</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: "Microsoft YaHei", sans-serif;
+    color: #eee;
+  }
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 32px;
+    letter-spacing: 8px;
+    color: #e6b422;
+    text-shadow: 0 2px 8px rgba(230, 180, 34, 0.3);
+  }
+  /* 大厅 */
+  #lobby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 40px;
+    background: #16213e;
+    border-radius: 12px;
+    border: 1px solid #333;
+  }
+  #lobby p { color: #aaa; font-size: 14px; }
+  .lobby-btn {
+    padding: 14px 36px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+    width: 220px;
+  }
+  #createBtn {
+    background: #e6b422;
+    color: #1a1a2e;
+    font-weight: bold;
+  }
+  #createBtn:hover { background: #f0c848; }
+  .join-row {
+    display: flex;
+    gap: 8px;
+  }
+  #roomInput {
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #0f3460;
+    color: #eee;
+    width: 140px;
+    text-align: center;
+    font-family: inherit;
+    letter-spacing: 2px;
+  }
+  #roomInput::placeholder { color: #555; letter-spacing: 0; }
+  #joinBtn {
+    background: #0f3460;
+    color: #aaa;
+    border: 1px solid #444;
+  }
+  #joinBtn:hover { background: #1a4a7a; color: #ddd; }
+  /* 游戏区 */
+  #gameArea { display: none; flex-direction: column; align-items: center; gap: 16px; }
+  .info-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .turn-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #16213e;
+    border-radius: 8px;
+    border: 1px solid #333;
+  }
+  .turn-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #555;
+  }
+  .turn-dot.black { background: #111; }
+  .turn-dot.white { background: #f5f5f5; }
+  .role-badge {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .role-black { background: #222; color: #fff; border: 1px solid #555; }
+  .role-white { background: #eee; color: #333; border: 1px solid #aaa; }
+  .role-spectator { background: #0f3460; color: #aaa; border: 1px solid #333; }
+  #status {
+    font-size: 18px;
+    color: #e6b422;
+    min-width: 120px;
+    text-align: center;
+  }
+  .room-info {
+    padding: 8px 16px;
+    background: #16213e;
+    border-radius: 8px;
+    border: 1px solid #333;
+    font-size: 14px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .room-id { color: #e6b422; font-weight: bold; letter-spacing: 1px; }
+  #copyLinkBtn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #0f3460;
+    color: #aaa;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #copyLinkBtn:hover { background: #1a4a7a; color: #ddd; }
+  canvas {
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  .btn-row { display: flex; gap: 12px; }
+  button {
+    padding: 10px 28px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  #restartBtn {
+    background: #e6b422;
+    color: #1a1a2e;
+    font-weight: bold;
+  }
+  #restartBtn:hover { background: #f0c848; transform: translateY(-1px); }
+  #leaveBtn {
+    background: #16213e;
+    color: #aaa;
+    border: 1px solid #333;
+  }
+  #leaveBtn:hover { background: #1a2744; color: #ddd; }
+  .waiting-msg {
+    color: #e6b422;
+    font-size: 16px;
+    animation: blink 1.5s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>五 子 棋</h1>
+
+  <!-- 大厅 -->
+  <div id="lobby">
+    <p>在线对战 · 邀请好友一起下棋</p>
+    <button class="lobby-btn" id="createBtn">创建房间</button>
+    <div class="join-row">
+      <input type="text" id="roomInput" placeholder="房间号" maxlength="6">
+      <button class="lobby-btn" id="joinBtn">加入</button>
+    </div>
+  </div>
+
+  <!-- 游戏区 -->
+  <div id="gameArea">
+    <div class="room-info">
+      房间：<span class="room-id" id="roomIdDisplay"></span>
+      <button id="copyLinkBtn">复制链接</button>
+    </div>
+    <div class="info-bar">
+      <div class="turn-indicator">
+        <span>当前：</span>
+        <div class="turn-dot black" id="turnDot"></div>
+        <span id="turnText">黑棋</span>
+      </div>
+      <div id="roleBadge" class="role-badge role-spectator">观战</div>
+      <div id="status"></div>
+    </div>
+    <div id="waitingMsg" class="waiting-msg">等待对手加入...</div>
+    <canvas id="board"></canvas>
+    <div class="btn-row">
+      <button id="restartBtn">再来一局</button>
+      <button id="leaveBtn">离开房间</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ===== Supabase 配置 =====
+const SUPABASE_URL = "https://duxadpnlfxedispqiaz.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1eGFkcG5wbGZ4ZWRpc3BpcWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzM1MjEsImV4cCI6MjA5NTAwOTUyMX0.lCDapOrXf37ERjHj4CTUBlsuAbrrhCeylrNRBWhzo4w";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ===== 音效模块 =====
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+function playPlaceSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const bufferSize = audioCtx.sampleRate * 0.06;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 8);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "bandpass"; filter.frequency.value = 800; filter.Q.value = 1.5;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.5, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  noise.connect(filter).connect(gain).connect(audioCtx.destination);
+  noise.start(now); noise.stop(now + 0.08);
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.05);
+  const oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.2, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  osc.connect(oscGain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.06);
+}
+function playWinSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  [523, 659, 784, 1047].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = "triangle"; osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    const t = now + i * 0.15;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.4);
+  });
+  const lastT = now + 0.6;
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine"; osc.frequency.value = 1047;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.3, lastT);
+  gain.gain.exponentialRampToValueAtTime(0.001, lastT + 0.8);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(lastT); osc.stop(lastT + 0.8);
+}
+function playInvalidSound() {
+  ensureAudio();
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine"; osc.frequency.value = 200;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.1);
+}
+
+// ===== 游戏逻辑 =====
+const GRID = 15;
+const CELL = 40;
+const PADDING = 30;
+const PIECE_R = 17;
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+canvas.width = canvas.height = PADDING * 2 + CELL * (GRID - 1);
+
+let board, currentPlayer, gameOver;
+let myRole = null;   // "black", "white", "spectator"
+let roomId = null;
+let channel = null;
+let lastBoardState = null; // 用于检测变化播放音效
+
+function emptyBoard() {
+  return Array.from({ length: GRID }, () => Array(GRID).fill(0));
+}
+
+function initGame() {
+  board = emptyBoard();
+  currentPlayer = 1;
+  gameOver = false;
+  lastBoardState = null;
+  document.getElementById("status").textContent = "";
+  document.getElementById("waitingMsg").style.display = "block";
+  updateTurn();
+  draw();
+}
+
+function draw() {
+  ctx.fillStyle = "#dcb35c";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(160, 120, 40, 0.15)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.height; i += 6) {
+    ctx.beginPath();
+    ctx.moveTo(0, i + Math.sin(i * 0.05) * 3);
+    ctx.lineTo(canvas.width, i + Math.sin(i * 0.05 + 2) * 3);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < GRID; i++) {
+    const pos = PADDING + i * CELL;
+    ctx.beginPath(); ctx.moveTo(PADDING, pos); ctx.lineTo(PADDING + CELL * (GRID - 1), pos); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pos, PADDING); ctx.lineTo(pos, PADDING + CELL * (GRID - 1)); ctx.stroke();
+  }
+  const stars = [3, 7, 11];
+  ctx.fillStyle = "#333";
+  for (const r of stars) for (const c of stars) {
+    ctx.beginPath(); ctx.arc(PADDING + c * CELL, PADDING + r * CELL, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+    if (board[r][c]) drawPiece(r, c, board[r][c]);
+  }
+  // 找最后一步标记
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+    if (board[r][c] && lastBoardState && !lastBoardState[r]?.[c]) {
+      const x = PADDING + c * CELL, y = PADDING + r * CELL;
+      ctx.strokeStyle = "#e6b422"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
+function drawPiece(r, c, player) {
+  const x = PADDING + c * CELL, y = PADDING + r * CELL;
+  ctx.beginPath(); ctx.arc(x + 2, y + 2, PIECE_R, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fill();
+  const grad = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, PIECE_R);
+  if (player === 1) { grad.addColorStop(0, "#555"); grad.addColorStop(1, "#111"); }
+  else { grad.addColorStop(0, "#fff"); grad.addColorStop(1, "#ccc"); }
+  ctx.beginPath(); ctx.arc(x, y, PIECE_R, 0, Math.PI * 2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = player === 1 ? "#000" : "#999"; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function checkWin(r, c, player) {
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (const [dr, dc] of dirs) {
+    let count = 1;
+    for (let i = 1; i < 5; i++) {
+      const nr = r + dr * i, nc = c + dc * i;
+      if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID || board[nr][nc] !== player) break;
+      count++;
+    }
+    for (let i = 1; i < 5; i++) {
+      const nr = r - dr * i, nc = c - dc * i;
+      if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID || board[nr][nc] !== player) break;
+      count++;
+    }
+    if (count >= 5) return true;
+  }
+  return false;
+}
+
+function updateTurn() {
+  const dot = document.getElementById("turnDot");
+  const text = document.getElementById("turnText");
+  dot.className = "turn-dot " + (currentPlayer === 1 ? "black" : "white");
+  text.textContent = currentPlayer === 1 ? "黑棋" : "白棋";
+}
+
+function updateRoleBadge() {
+  const badge = document.getElementById("roleBadge");
+  if (myRole === "black") { badge.textContent = "你是黑棋"; badge.className = "role-badge role-black"; }
+  else if (myRole === "white") { badge.textContent = "你是白棋"; badge.className = "role-badge role-white"; }
+  else { badge.textContent = "观战中"; badge.className = "role-badge role-spectator"; }
+}
+
+// ===== 网络：创建/加入房间 =====
+function genRoomId() {
+  return Math.random().toString(36).substring(2, 8);
+}
+
+async function createRoom() {
+  roomId = genRoomId();
+  const boardData = emptyBoard();
+  const { error } = await supabase.from("rooms").insert({
+    id: roomId,
+    board: boardData,
+    current_turn: "black",
+    player_black: null,
+    player_white: null,
+    status: "waiting",
+    winner: null
+  });
+  if (error) { alert("创建房间失败：" + error.message); return; }
+  myRole = "black";
+  enterGame();
+  subscribeRoom();
+  // 注册自己为黑棋
+  await supabase.from("rooms").update({ player_black: "p_" + Date.now() }).eq("id", roomId);
+}
+
+async function joinRoom(id) {
+  roomId = id.trim().toLowerCase();
+  if (!roomId) { alert("请输入房间号"); return; }
+  const { data, error } = await supabase.from("rooms").select("*").eq("id", roomId).single();
+  if (error || !data) { alert("房间不存在，请检查房间号"); return; }
+  // 判断角色
+  if (!data.player_black) {
+    myRole = "black";
+    await supabase.from("rooms").update({ player_black: "p_" + Date.now() }).eq("id", roomId);
+  } else if (!data.player_white) {
+    myRole = "white";
+    await supabase.from("rooms").update({ player_white: "p_" + Date.now() }).eq("id", roomId);
+  } else {
+    myRole = "spectator";
+  }
+  // 加载当前状态
+  board = data.board || emptyBoard();
+  currentPlayer = data.current_turn === "black" ? 1 : 2;
+  gameOver = data.status === "finished";
+  lastBoardState = JSON.parse(JSON.stringify(board));
+  if (gameOver && data.winner) {
+    document.getElementById("status").textContent = data.winner === "black" ? "黑棋获胜!" : "白棋获胜!";
+  }
+  document.getElementById("waitingMsg").style.display = (data.status === "waiting") ? "block" : "none";
+  enterGame();
+  subscribeRoom();
+  updateTurn();
+  draw();
+}
+
+function enterGame() {
+  document.getElementById("lobby").style.display = "none";
+  document.getElementById("gameArea").style.display = "flex";
+  document.getElementById("roomIdDisplay").textContent = roomId;
+  updateRoleBadge();
+}
+
+function leaveGame() {
+  if (channel) { supabase.removeChannel(channel); channel = null; }
+  roomId = null;
+  myRole = null;
+  document.getElementById("lobby").style.display = "flex";
+  document.getElementById("gameArea").style.display = "none";
+}
+
+// ===== 实时订阅 =====
+function subscribeRoom() {
+  channel = supabase
+    .channel("room:" + roomId)
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "rooms",
+      filter: `id=eq.${roomId}`
+    }, (payload) => {
+      const d = payload.new;
+      // 记录旧棋盘用于音效检测
+      const prevBoard = board;
+      board = d.board || emptyBoard();
+      currentPlayer = d.current_turn === "black" ? 1 : 2;
+      gameOver = d.status === "finished";
+      // 检测是否有新落子 → 播放音效
+      let newPiece = null;
+      for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+        if (board[r][c] && (!prevBoard || !prevBoard[r]?.[c])) newPiece = { r, c };
+      }
+      if (newPiece) playPlaceSound();
+      // 等待状态
+      const bothJoined = d.player_black && d.player_white;
+      document.getElementById("waitingMsg").style.display = bothJoined ? "none" : "block";
+      // 胜负
+      if (gameOver && d.winner) {
+        document.getElementById("status").textContent = d.winner === "black" ? "黑棋获胜!" : "白棋获胜!";
+        playWinSound();
+      } else {
+        document.getElementById("status").textContent = "";
+      }
+      lastBoardState = JSON.parse(JSON.stringify(board));
+      updateTurn();
+      draw();
+    })
+    .subscribe();
+}
+
+// ===== 落子 → 同步到 Supabase =====
+async function placePiece(r, c) {
+  if (gameOver || board[r][c]) { playInvalidSound(); return; }
+  // 权限检查
+  const isMyTurn = (myRole === "black" && currentPlayer === 1) || (myRole === "white" && currentPlayer === 2);
+  if (!isMyTurn) { playInvalidSound(); return; }
+  // 本地先更新
+  board[r][c] = currentPlayer;
+  playPlaceSound();
+  draw();
+  // 检查胜负
+  let winner = null;
+  let newStatus = "playing";
+  if (checkWin(r, c, currentPlayer)) {
+    gameOver = true;
+    winner = currentPlayer === 1 ? "black" : "white";
+    newStatus = "finished";
+    document.getElementById("status").textContent = (currentPlayer === 1 ? "黑棋" : "白棋") + "获胜!";
+    setTimeout(playWinSound, 200);
+  }
+  // 检查平局
+  let allFilled = true;
+  for (let rr = 0; rr < GRID; rr++) for (let cc = 0; cc < GRID; cc++) {
+    if (!board[rr][cc]) allFilled = false;
+  }
+  if (allFilled && !winner) {
+    gameOver = true;
+    newStatus = "finished";
+    document.getElementById("status").textContent = "平局!";
+  }
+  const nextTurn = currentPlayer === 1 ? "white" : "black";
+  currentPlayer = currentPlayer === 1 ? 2 : 1;
+  updateTurn();
+  // 同步到 Supabase
+  await supabase.from("rooms").update({
+    board: board,
+    current_turn: nextTurn,
+    status: newStatus,
+    winner: winner
+  }).eq("id", roomId);
+}
+
+// ===== 再来一局 =====
+async function restartGame() {
+  board = emptyBoard();
+  currentPlayer = 1;
+  gameOver = false;
+  lastBoardState = null;
+  document.getElementById("status").textContent = "";
+  // 交换先后手
+  if (myRole === "black") myRole = "white";
+  else if (myRole === "white") myRole = "black";
+  updateRoleBadge();
+  updateTurn();
+  draw();
+  await supabase.from("rooms").update({
+    board: board,
+    current_turn: "black",
+    status: "waiting",
+    winner: null,
+    player_black: myRole === "black" ? "p_" + Date.now() : null,
+    player_white: myRole === "white" ? "p_" + Date.now() : null
+  }).eq("id", roomId);
+}
+
+// ===== 事件绑定 =====
+canvas.addEventListener("click", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const c = Math.round((x - PADDING) / CELL);
+  const r = Math.round((y - PADDING) / CELL);
+  if (r < 0 || r >= GRID || c < 0 || c >= GRID) return;
+  placePiece(r, c);
+});
+
+document.getElementById("createBtn").addEventListener("click", createRoom);
+document.getElementById("joinBtn").addEventListener("click", () => joinRoom(document.getElementById("roomInput").value));
+document.getElementById("roomInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") joinRoom(document.getElementById("roomInput").value);
+});
+document.getElementById("restartBtn").addEventListener("click", restartGame);
+document.getElementById("leaveBtn").addEventListener("click", leaveGame);
+document.getElementById("copyLinkBtn").addEventListener("click", () => {
+  const url = location.origin + location.pathname + "#" + roomId;
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById("copyLinkBtn").textContent = "已复制!";
+    setTimeout(() => document.getElementById("copyLinkBtn").textContent = "复制链接", 1500);
+  });
+});
+
+// 从 URL hash 自动加入房间
+if (location.hash) {
+  const hashRoom = location.hash.substring(1);
+  if (hashRoom) joinRoom(hashRoom);
+}
+</script>
+</body>
+</html>
